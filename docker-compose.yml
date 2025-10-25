@@ -1,0 +1,157 @@
+#version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: transportista-postgres
+    environment:
+      POSTGRES_DB: transportista_db
+      POSTGRES_USER: transportista_user
+      POSTGRES_PASSWORD: transportista_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init-scripts:/docker-entrypoint-initdb.d
+    networks:
+      - transportista-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U transportista_user -d transportista_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Keycloak
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0.3
+    container_name: transportista-keycloak
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak_db
+      KC_DB_USERNAME: transportista_user
+      KC_DB_PASSWORD: transportista_pass
+      KC_HOSTNAME: keycloak
+      KC_HTTP_ENABLED: "true"
+    command: start-dev --import-realm
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./keycloak-config:/opt/keycloak/data/import
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - transportista-network
+
+  # API Gateway
+  api-gateway:
+    build:
+      context: .
+      dockerfile: api-gateway/Dockerfile
+    container_name: transportista-gateway
+    ports:
+      - "8000:8000"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      KEYCLOAK_URL: http://keycloak:8080
+    depends_on:
+      - postgres
+      - keycloak
+    networks:
+      - transportista-network
+    restart: unless-stopped
+
+  # Solicitudes Service
+  solicitudes-service:
+    build:
+      context: .
+      dockerfile: solicitudes-service/Dockerfile
+    container_name: transportista-solicitudes
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/transportista_db
+      SPRING_DATASOURCE_USERNAME: transportista_user
+      SPRING_DATASOURCE_PASSWORD: transportista_pass
+      KEYCLOAK_URL: http://keycloak:8080
+    depends_on:
+      - postgres
+      - keycloak
+    networks:
+      - transportista-network
+    restart: unless-stopped
+
+  # Logistica Service
+  logistica-service:
+    build:
+      context: .
+      dockerfile: logistica-service/Dockerfile
+    container_name: transportista-logistica
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/transportista_db
+      SPRING_DATASOURCE_USERNAME: transportista_user
+      SPRING_DATASOURCE_PASSWORD: transportista_pass
+      KEYCLOAK_URL: http://keycloak:8080
+    depends_on:
+      - postgres
+      - keycloak
+    networks:
+      - transportista-network
+    restart: unless-stopped
+
+  # Tarifas Service
+  tarifas-service:
+    build:
+      context: .
+      dockerfile: tarifas-service/Dockerfile
+    container_name: transportista-tarifas
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/transportista_db
+      SPRING_DATASOURCE_USERNAME: transportista_user
+      SPRING_DATASOURCE_PASSWORD: transportista_pass
+      KEYCLOAK_URL: http://keycloak:8080
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY}
+    depends_on:
+      - postgres
+      - keycloak
+    networks:
+      - transportista-network
+    restart: unless-stopped
+
+  # Tracking Service
+  tracking-service:
+    build:
+      context: .
+      dockerfile: tracking-service/Dockerfile
+    container_name: transportista-tracking
+    ports:
+      - "8084:8084"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/transportista_db
+      SPRING_DATASOURCE_USERNAME: transportista_user
+      SPRING_DATASOURCE_PASSWORD: transportista_pass
+      KEYCLOAK_URL: http://keycloak:8080
+    depends_on:
+      - postgres
+      - keycloak
+    networks:
+      - transportista-network
+    restart: unless-stopped
+
+networks:
+  transportista-network:
+    driver: bridge
+
+volumes:
+  postgres_data:

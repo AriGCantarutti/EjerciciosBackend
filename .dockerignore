@@ -1,0 +1,17 @@
+# Ignorar carpetas y artefactos de build para acelerar context
+target/
+**/target/
+*.jar
+**/*.jar
+.mvn/
+.m2/
+.git
+.gitignore
+.idea/
+.vscode/
+*.iml
+mvnw
+mvnw.cmd
+node_modules/
+.DS_Store
+

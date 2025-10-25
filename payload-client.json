@@ -1,0 +1,8 @@
+﻿{
+  "nombre": "Test",
+  "apellido": "Usuario",
+  "dni": "99999999",
+  "domicilio": "Calle Test 123",
+  "telefono": "+5491199999999",
+  "email": "test@example.com"
+}
